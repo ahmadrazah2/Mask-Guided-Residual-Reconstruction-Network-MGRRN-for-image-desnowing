@@ -1,0 +1,51 @@
+# ────────────────────────────────────────────────
+# Snow Removal Deep Learning – Training Config
+# ────────────────────────────────────────────────
+
+# Dataset
+data:
+  root: "data"
+  snow_images: "snow_images"
+  snow_masks:  "snow_masks"
+  clean_images: "clean_images"
+  img_size: 256
+  train_split: 0.8
+
+# Model
+model:
+  name: "ResidualSnowRemoval"   # matches class in models/model.py
+  in_channels: 3
+
+# Training
+train:
+  epochs: 100
+  batch_size: 8
+  num_workers: 4
+  learning_rate: 0.0002
+  weight_decay: 0.0001
+  lr_scheduler: "cosine"       # cosine | step | none
+  lr_step_size: 30
+  lr_gamma: 0.5
+  grad_clip: 1.0
+  seed: 42
+
+# Loss weights
+loss:
+  l1_weight: 1.0
+  ssim_weight: 0.5
+  perceptual_weight: 0.1
+  mask_weight: 0.5
+
+# Logging & Saving
+logging:
+  log_dir: "outputs/logs"
+  checkpoint_dir: "checkpoints"
+  save_every: 10              # save checkpoint every N epochs
+  val_every: 1               # validate every N epochs
+  use_tensorboard: true
+
+# Inference
+inference:
+  checkpoint: "checkpoints/best_model.pth"
+  output_dir: "outputs/predictions"
+  img_size: 256

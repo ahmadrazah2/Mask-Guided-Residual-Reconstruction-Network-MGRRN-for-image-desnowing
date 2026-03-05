@@ -1,244 +1,300 @@
-# Mask-Guided-Residual-Reconstruction-Network-MGRRN-for-image-desnowing
+# Snow Removal using Deep Learning — MGRRN
 
+<p align="center">
+  <img src="https://img.shields.io/badge/PyTorch-2.0+-ee4c2c?logo=pytorch&logoColor=white" />
+  <img src="https://img.shields.io/badge/Python-3.9+-3776ab?logo=python&logoColor=white" />
+  <img src="https://img.shields.io/badge/License-MIT-green" />
+  <img src="https://img.shields.io/badge/Task-Image%20Restoration-blueviolet" />
+</p>
 
-
-
-
-
-This repository contains the official implementation of **MGRRN – Mask-Guided Residual Reconstruction Network**, a deep learning–based framework for **single image snow removal**.
-The model predicts a **3-channel snow mask** and uses it to guide a **residual reconstruction network**, restoring clean snow-free images with improved structure and detail preservation.
-
----
-
-## 🚀 **Features**
-
-* **Two-stage architecture**
-
-  * **Mask Generation Module (MGM)** using *SimpleFusionNet*
-  * **Residual Reconstruction Module (RRM)** guided by mask features
-* **3-channel mask prediction** (richer spatial + color cues)
-* **Residual learning** for snow removal
-* **Combined loss function**
-  `L1 + 0.5 L1(mask) + 0.1 SSIM + 0.01 VGG Perceptual`
-* Supports **MPS (Apple Silicon)**, **CUDA**, and **CPU**
-* Includes:
-
-  * `train.py`
-  * `test.py` (snow → clean)
-  * `mask.py` (snow → mask)
-  * `dataset.py`
-  * `loss.py`
-  * `utils.py`
+> **Official PyTorch implementation** of the paper:
+> **"Snow Removal in Images Using a Deep Learning-Based Residual Restoration Neural Network"**
+> Ahmad Raza Hussain, H.S. Lee, H.S. Lee — *JKIICE 2026*
 
 ---
 
-## 📂 **Project Structure**
+## Overview
+
+Snow in images degrades visual quality and severely affects downstream vision tasks (object detection, segmentation, autonomous driving, etc.).
+**MGRRN** (Mask-Guided Residual Reconstruction Network) tackles this with a two-stage pipeline:
+
+| Stage | Module | Output |
+|---|---|---|
+| 1 | `SimpleFusionNet` | Soft 3-channel snow mask |
+| 2 | `ResidualReconstructNet` | Residual image (snow texture) |
+| — | Subtraction + clamp | Clean restored image |
 
 ```
-MGRRN/
-│
-├── model.py            # Model architecture
-├── dataset.py          # Snow100K dataset loader
-├── loss.py             # Combined loss (L1, SSIM, VGG)
-├── utils.py            # Image helpers + device setup
-│
-├── train.py            # Training script
-├── test.py             # Snow → Clean Image
-├── mask.py             # Snow → Mask Prediction
-│
-├── requirements.txt    # Python dependencies
-├── README.md           # Documentation
-│
-└── checkpoints/        # Saved .pth model weights
+Snowy Image ──► SimpleFusionNet ──► Snow Mask
+      │                                  │
+      └────────── Cat ───────────────────┘
+                   │
+             ResidualReconstructNet
+                   │
+              Snow Residual
+                   │
+      Clean = clamp(Snowy − Residual, 0, 1)
 ```
+
+### Key Features
+- 🎭 **Joint mask + clean-image prediction** in a single forward pass
+- 🔗 **Skip-connection U-Net decoder** for detail-preserving reconstruction
+- 📐 **Multi-scale fusion** in the mask branch for accurate snow localisation
+- 📉 **Composite loss**: L1 + SSIM + Perceptual (VGG) + Mask supervision
+- 📊 **TensorBoard integration** for real-time training monitoring
 
 ---
 
-# 📥 **Dataset**
-
-This project uses the **Snow100K** dataset:
+## Repository Structure
 
 ```
-snow_dir  → snowy images
-mask_dir  → ground truth snow masks
-clean_dir → snow-free clean images
-```
-
-Example structure:
-
-```
-snow_images/
-    0001.png
-    0002.png
-    ...
-snow_mask/
-    0001.png
-    0002.png
-    ...
-snow_free/
-    0001.png
-    0002.png
+.
+├── configs/
+│   └── config.yaml          # All hyper-parameters in one place
+├── data/
+│   ├── snow_images/         # Input: snowy images
+│   ├── snow_masks/          # Ground-truth snow masks
+│   └── clean_images/        # Ground-truth clean images
+├── datasets/
+│   └── dataset_loader.py    # PyTorch Dataset + DataLoader builder
+├── models/
+│   └── model.py             # MGRRN architecture
+├── utils/
+│   ├── loss.py              # Composite loss function
+│   ├── metrics.py           # PSNR / SSIM evaluation
+│   └── visualize.py         # Comparison figures & TensorBoard helpers
+├── scripts/                 # Utility / preprocessing scripts
+├── checkpoints/             # Saved model weights
+├── outputs/                 # Training logs, val visualisations, predictions
+├── train.py                 # Training entry point
+├── test.py                  # Evaluation / benchmarking
+├── inference.py             # Run on new images
+├── requirements.txt
+└── LICENSE
 ```
 
 ---
 
-# ⚙️ **Installation**
+## Installation
 
-### 1. Clone the repository
+### 1 · Clone
 
 ```bash
-git clone https://github.com/yourusername/MGRRN.git
-cd MGRRN
+git clone https://github.com/<your-username>/MGRRN-Snow-Removal.git
+cd MGRRN-Snow-Removal
 ```
 
-### 2. Install dependencies
+### 2 · Create environment
+
+```bash
+# Using conda (recommended)
+conda create -n mgrrn python=3.10 -y
+conda activate mgrrn
+
+# Or using venv
+python -m venv mgrrn_env && source mgrrn_env/bin/activate
+```
+
+### 3 · Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
+> **GPU users:** install the CUDA-enabled PyTorch wheel from [pytorch.org](https://pytorch.org/get-started/locally/) before running the above command.
+
 ---
 
-# 🔥 **Training**
+## Dataset Structure
 
-Train the full MGRRN model with:
+Place your data under the `data/` directory:
 
-```bash
-python train.py \
-    --snow_dir "/path/to/snow_images" \
-    --mask_dir "/path/to/snow_mask" \
-    --clean_dir "/path/to/snow_free" \
-    --epochs 50 \
-    --batch_size 4 \
-    --lr 1e-4 \
-    --ckpt_dir "checkpoints"
+```
+data/
+├── snow_images/          ← snowy input images  (e.g., 0001.png … 5000.png)
+├── snow_masks/           ← ground-truth binary/soft snow masks
+└── clean_images/         ← corresponding snow-free images
 ```
 
-During training:
-
-* Checkpoints are saved each epoch inside `/checkpoints`
-* The model trains on **256×256** images (default)
+> All three folders must contain files with **identical filenames** (stem only; extension may differ).
+> Supported formats: `.png`, `.jpg`, `.jpeg`, `.bmp`, `.tif`, `.tiff`
 
 ---
 
-# 🧪 **Testing (Snow → Clean)**
+## Configuration
+
+All hyper-parameters are controlled via `configs/config.yaml`.
+No code changes are needed between experiments — just edit the YAML.
+
+```yaml
+train:
+  epochs:        100
+  batch_size:    8
+  learning_rate: 0.0002
+loss:
+  l1_weight:         1.0
+  ssim_weight:       0.5
+  perceptual_weight: 0.1
+  mask_weight:       0.5
+```
+
+---
+
+## Training
+
+```bash
+python train.py --config configs/config.yaml
+```
+
+**Resume from checkpoint:**
+
+```bash
+python train.py --config configs/config.yaml --resume checkpoints/last.pth
+```
+
+Training artefacts are saved to:
+- `checkpoints/best_model.pth` — best validation PSNR
+- `checkpoints/last.pth`       — latest epoch
+- `outputs/logs/`              — TensorBoard event files
+- `outputs/val_viz/`           — side-by-side validation comparisons
+
+**Monitor with TensorBoard:**
+
+```bash
+tensorboard --logdir outputs/logs
+```
+
+---
+
+## Testing / Evaluation
+
+`test.py` supports **three modes** in a single script:
+
+| Mode | Command | Ground-truth needed? |
+|------|---------|----------------------|
+| **Single image** | `--input photo.jpg` | ❌ No |
+| **Folder of images** | `--input snowy_dir/` | ❌ No |
+| **Full benchmark** | *(no `--input`)* | ✅ Yes (PSNR & SSIM) |
+
+### Mode 1 — Single image *(simplest)*
 
 ```bash
 python test.py \
-    --input "sample_snow.png" \
-    --checkpoint "checkpoints/residual_snow_epoch_050.pth" \
-    --output "results/clean_output.png"
+  --input      beautiful_smile_00135.jpg \
+  --checkpoint checkpoints/mgrrn.pth
 ```
 
-This produces a clean snow-free image.
+Output: `outputs/test_results/<name>_clean.png`
 
----
-
-# 🎭 **Mask Generation (Snow → Mask)**
+### Mode 2 — Folder of images
 
 ```bash
-python mask.py \
-    --input "sample_snow.png" \
-    --checkpoint "checkpoints/mask_net.pth" \
-    --output "results/mask_output.png"
+python test.py \
+  --input      path/to/snowy_folder/ \
+  --checkpoint checkpoints/mgrrn.pth \
+  --save_mask
 ```
 
-The mask is always predicted in **256×256** resolution.
+`--save_mask` also saves a red-tinted snow mask overlay for each image.
 
----
+### Mode 3 — Full benchmark (PSNR & SSIM)
 
-# 📊 **Loss Function**
-
-The combined loss encourages:
-
-* Pixel accuracy (L1)
-* Mask quality (L1 mask)
-* Structural integrity (SSIM)
-* Perceptual similarity (VGG)
-
-[
-\mathcal{L} =
-L_1(I_{pred}, I_{clean}) +
-0.5 \cdot L_1(M_{pred}, M_{gt}) +
-0.1 \cdot (1 - SSIM) +
-0.01 \cdot \mathcal{L}_{VGG}
-]
-
-Implemented in:
-`loss.py`
-
----
-
-# 🖥️ **Device Support**
-
-Automatic device selection:
-
-* ✔ MPS (Apple M1/M2/M3)
-* ✔ CUDA GPUs
-* ✔ CPU fallback
-
-From `utils.py`:
-
+```bash
+python test.py \
+  --checkpoint checkpoints/mgrrn.pth \
+  --save_images
 ```
-🚀 Using Mac GPU (MPS)
-🚀 Using CUDA GPU
-💻 Using CPU
+
+Requires `data/snow_images/`, `data/snow_masks/`, `data/clean_images/`.
+Outputs a `metrics.csv` with per-image PSNR & SSIM.
+
+### Device Selection
+
+By default the script auto-detects the best available device (CUDA → MPS → CPU).
+Override with `--device`:
+
+```bash
+--device auto   # CUDA → Apple M-chip → CPU  [default]
+--device mps    # Apple Silicon GPU
+--device cuda   # NVIDIA GPU
+--device cpu    # CPU only
 ```
 
 ---
 
-# 📌 **Checkpoints**
+## Inference on New Images
 
-Trained checkpoints are saved as:
+```bash
+# Single image
+python inference.py \
+  --input      path/to/snowy.jpg \
+  --checkpoint checkpoints/mgrrn.pth \
+  --save_overlay
 
+# Entire directory
+python inference.py \
+  --input      path/to/snowy_dir/ \
+  --checkpoint checkpoints/mgrrn.pth \
+  --output     outputs/predictions/
 ```
-checkpoints/residual_snow_epoch_001.pth
-checkpoints/residual_snow_epoch_050.pth
-...
-```
 
-You can use the final epoch for inference.
+- `<name>_clean.png`         — restored snow-free image
+- `<name>_mask_overlay.png`  — red-tinted mask overlay (`--save_overlay`)
 
 ---
 
-# 📄 **Citation**
+## Model Architecture
 
-If you use this code in research, please cite **MGRRN**:
+| Module | Role | Parameters* |
+|---|---|---|
+| `SimpleFusionNet` | Snow mask prediction | ~1.2 M |
+| `ResidualReconstructNet` | Residual estimation (U-Net) | ~4.5 M |
+| **Total** | | **~5.7 M** |
 
-```
-@article{MGRRN2025,
-  title={Mask-Guided Residual Reconstruction Network (MGRRN) for Image Snow Removal},
-  author={Hussain Ahmad Raza},
-  year={2025},
-  journal={Under Preparation},
+\* Approximate values for 256 × 256 input.
+
+---
+
+## Results
+
+> *(Update this table with your own benchmark results)*
+
+| Dataset | PSNR ↑ | SSIM ↑ |
+|---|---|---|
+| Snow100K-S | — | — |
+| Snow100K-L | — | — |
+| CSD | — | — |
+
+---
+
+## Citation
+
+If you use this code or find this work helpful, please cite:
+
+```bibtex
+@article{hussain2026snow,
+  author  = {Hussain, Ahmad Raza and Lee, H.S. and Lee, H.S.},
+  title   = {Snow Removal in Images Using a Deep Learning-Based Residual Restoration Neural Network},
+  journal = {Journal of the Korea Institute of Information and Communication Engineering},
+  volume  = {30},
+  number  = {1},
+  pages   = {92--102},
+  year    = {2026},
+  doi     = {10.6109/jkiice.2026.30.1.92},
+  url     = {https://doi.org/10.6109/jkiice.2026.30.1.92}
 }
 ```
 
 ---
 
-# ❤️ **Acknowledgements**
+## License
 
-* Snow100K Dataset
-* PyTorch
-* VGG19 Perceptual Loss
-* pytorch-msssim
+This project is released under the [MIT License](LICENSE).
 
 ---
 
+## Acknowledgements
 
-
-# 📦 **requirements.txt**
-
-Create this file in your repo:
-
-```
-torch
-torchvision
-pillow
-numpy
-pytorch-msssim
-tqdm
-opencv-python
-```
-
-
+- [pytorch-msssim](https://github.com/VainF/pytorch-msssim) for the SSIM loss implementation
+- [LPIPS](https://github.com/richzhang/PerceptualSimilarity) for perceptual loss
+- The deep learning image restoration community for open datasets and benchmarks
